@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite it as below."
+title: "Space-glide quantum walk: code for 'Non-Orientable Discrete-Time Quantum Walks'"
+type: software
+authors:
+  - family-names: Tomal
+    given-names: S. M. Yousuf Iqbal
+    affiliation: "BRAC University"
+  - family-names: Shafin
+    given-names: Abdullah Al
+    affiliation: "BRAC University"
+license: MIT
+repository-code: "https://github.com/tom32bit/space-glide-quantum-walk"
+keywords:
+  - discrete-time quantum walk
+  - nonsymmorphic symmetry
+  - topological phases
+  - Möbius

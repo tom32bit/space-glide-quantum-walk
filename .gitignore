@@ -1,15 +1,10 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
 *.egg-info/
-
-# Jupyter
 .ipynb_checkpoints/
 
-# Environment
+# Environments
 .env
 .venv/
 venv/
@@ -18,9 +13,5 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Project-local working files
-_gen_notebook.py
-_validate_*.py
-
-# Manuscript folder (kept out of version control)
+# Manuscript sources (not distributed with the code)
 paper/
