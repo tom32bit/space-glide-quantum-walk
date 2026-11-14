@@ -1,125 +1,136 @@
 """
-E3 -- Phase diagram of the space-glide walker.
+E3 -- Gap-resolved phase diagram on the coin-angle slice (aA, aB).
 
-Scans the coin-angle slice (aA, aB) in [-pi, pi]^2 at fixed (bA, bB),
-computing for every point:
-  - both bulk quasienergy gaps (at eps = 0 and eps = pi),
-  - both nonsymmorphic Z2 invariants (zeta_0, zeta_pi),
-  - the quantization error of the half-zone winding integer n.
+Scans (aA, aB) in [-pi, pi]^2 at fixed (bA, bB) and computes at every point
+  - the gap-resolved invariants (zeta_0, zeta_pi) from the half-step blocks,
+  - both bulk gaps (from the smallest singular values of b and d),
+  - the H_eff parity for both branch cuts (legacy quantity, cross-check only).
+
+Audits printed:
+  - quantization error of the half-zone integers on gapped points;
+  - agreement with the closed form of Proposition 2 on gapped points;
+  - GAP-SELECTIVE boundary audit: every zeta_0 jump between neighbouring grid
+    points sits on a step where the 0 gap is small, every zeta_pi jump on a
+    step where the pi gap is small;
+  - identity: H_eff parity (either cut) = zeta_0 + zeta_pi + 1 (mod 2).
 
 Outputs:
   ../figures/E3_phase_diagram.png
   ../figures/E3_phase_diagram.npz          (raw data)
-and prints a boundary-alignment audit: every zeta jump between neighbouring
-grid points must be accompanied by a small bulk gap along the step.
 
-A consistency assert cross-checks the batched pipeline against the reference
-scalar implementation in spaceglide_walker.glide_z2 at random points.
+Revision 2026-11-12: the first draft plotted the two branch-cut parities of
+H_eff as "zeta_0" and "zeta_pi"; those are identical by an exact identity and
+are not gap-resolved. They are stored here as ZH_pi / ZH_0 for the cross-check.
 """
 
+import sys
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from spaceglide_walker import PI, glide_z2
-
-# Batched pipeline lives in the library (shared with the revision scripts).
-from spaceglide_walker import point_data
-
-# ------------------------------------------------------------- consistency
-
-rng = np.random.default_rng(3)
-for _ in range(4):
-    p = tuple(rng.uniform(-PI, PI, 4))
-    z0_ref, n0_ref, _, _ = glide_z2(p, gap="pi")
-    zp_ref, np_ref, _, _ = glide_z2(p, gap="0")
-    g0, gp, (z0, n0, _, _), (zp, npi, _, _) = point_data(p)
-    assert (z0, zp) == (z0_ref, zp_ref), f"batched != reference at {p}"
-print("consistency: batched pipeline matches reference glide_z2  [OK]")
-
-# ------------------------------------------------------------------- scan
+from figstyle import plt, INK, SEQ, BINARY
+from spaceglide_walker import PI, gap_resolved_z2, closed_form_z2, point_data
 
 BFIX = (-1.24, -1.39)
+if len(sys.argv) == 3:                       # optional: another beta slice
+    BFIX = (float(sys.argv[1]), float(sys.argv[2]))
+TAG = "" if BFIX == (-1.24, -1.39) else f"_b{BFIX[0]:+.2f}_{BFIX[1]:+.2f}"
 NG = 61
+GAP_MIN = 0.05
 grid = np.linspace(-PI, PI, NG)
 Z0 = np.zeros((NG, NG), dtype=int)
 ZP = np.zeros((NG, NG), dtype=int)
+ZHpi = np.zeros((NG, NG), dtype=int)         # H_eff parity, branch cut at pi
+ZH0 = np.zeros((NG, NG), dtype=int)          # H_eff parity, branch cut at 0
 G0 = np.zeros((NG, NG))
 GP = np.zeros((NG, NG))
 QE = np.zeros((NG, NG))
+CF = np.zeros((NG, NG), dtype=bool)          # closed form agrees
 
 for i, aA in enumerate(grid):
     for j, aB in enumerate(grid):
-        g0, gp, (z0, n0, dmin0, q0), (zp, npi, dminp, qp) = \
-            point_data((aA, aB) + BFIX, nk=161)
-        Z0[i, j], ZP[i, j] = z0, zp
-        G0[i, j], GP[i, j] = g0, gp
-        QE[i, j] = max(q0, qp)
+        p = (aA, aB) + BFIX
+        r = gap_resolved_z2(p, nk=161)
+        Z0[i, j], ZP[i, j] = r["zeta0"], r["zetapi"]
+        G0[i, j], GP[i, j], QE[i, j] = r["gap0"], r["gappi"], r["qerr"]
+        CF[i, j] = (r["zeta0"], r["zetapi"]) == closed_form_z2(p)[:2]
+        _, _, (zh_pi, _, _, _), (zh_0, _, _, _) = point_data(p, nk=161)
+        ZHpi[i, j], ZH0[i, j] = zh_pi, zh_0
     if i % 10 == 0:
-        print(f"  row {i+1}/{NG}")
+        print(f"  row {i + 1}/{NG}")
 
-np.savez("../figures/E3_phase_diagram.npz", grid=grid, Z0=Z0, ZP=ZP,
-         G0=G0, GP=GP, QE=QE, BFIX=np.array(BFIX))
+np.savez(f"../figures/E3_phase_diagram{TAG}.npz", grid=grid, Z0=Z0, ZP=ZP,
+         ZHpi=ZHpi, ZH0=ZH0, G0=G0, GP=GP, QE=QE, BFIX=np.array(BFIX))
 
 # --------------------------------------------------------------- audits
+gapped = np.minimum(G0, GP) > GAP_MIN
+print(f"\ngapped points (both gaps > {GAP_MIN}): {gapped.sum()} of {NG * NG}")
+print(f"quantization error on gapped points: {QE[gapped].max():.2e}")
+print(f"closed form agrees on gapped points: {CF[gapped].sum()} of {gapped.sum()}")
+classes = sorted(set(zip(Z0[gapped].tolist(), ZP[gapped].tolist())))
+print(f"classes (zeta_0, zeta_pi) present: {classes}")
+ident = ((ZHpi == ZH0) & (ZHpi == (Z0 + ZP + 1) % 2))[gapped]
+print(f"identity ZH(cut pi) = ZH(cut 0) = zeta_0 + zeta_pi + 1 on gapped "
+      f"points: {ident.sum()} of {gapped.sum()}")
 
-gap_floor = np.minimum(G0, GP)
-print(f"\nquantization error: max {QE.max():.2e} "
-      f"(on gapped points: {QE[gap_floor > 0.05].max():.2e})")
-print(f"zeta_0 classes: {np.unique(Z0).tolist()}, "
-      f"zeta_pi classes: {np.unique(ZP).tolist()}")
-print(f"zeta_0 == zeta_pi everywhere? {np.array_equal(Z0, ZP)}")
-
-# boundary alignment: every neighbouring zeta jump should sit at a small gap
-bad = 0
-worst = 0.0
-for Z, G, other in ((Z0, G0, GP), (ZP, GP, G0)):
+for name, Z, G, Gother in (("zeta_0", Z0, G0, GP), ("zeta_pi", ZP, GP, G0)):
+    njump = bad = 0
+    worst = 0.0
+    other_at_jump = []
     for ax in (0, 1):
         dz = np.diff(Z, axis=ax) != 0
-        gmin = np.minimum(np.take(G, range(0, NG - 1), axis=ax),
-                          np.take(G, range(1, NG), axis=ax))
-        # a zeta jump can also be caused by the OTHER gap closing (branch cut
-        # smoothness), so use the min over both gaps:
-        omin = np.minimum(np.take(other, range(0, NG - 1), axis=ax),
-                          np.take(other, range(1, NG), axis=ax))
-        floor = np.minimum(gmin, omin)
-        viol = dz & (floor > 0.25)
-        bad += viol.sum()
+        own = np.minimum(np.take(G, range(0, NG - 1), axis=ax),
+                         np.take(G, range(1, NG), axis=ax))
+        oth = np.minimum(np.take(Gother, range(0, NG - 1), axis=ax),
+                         np.take(Gother, range(1, NG), axis=ax))
+        njump += dz.sum()
+        bad += (dz & (own > 0.25)).sum()
         if dz.any():
-            worst = max(worst, floor[dz].max())
-print(f"zeta jumps across a well-gapped step (gap floor > 0.25): {bad}")
-print(f"largest gap floor found on any zeta-jump step: {worst:.3f}")
+            worst = max(worst, own[dz].max())
+            other_at_jump.extend(oth[dz].tolist())
+    print(f"{name}: {njump} jumps; largest OWN-gap floor on a jump step "
+          f"{worst:.3f}; jumps across a step with own gap > 0.25: {bad}; "
+          f"median OTHER gap on jump steps {np.median(other_at_jump):.3f}")
 
 # --------------------------------------------------------------- figure
+fig, axes = plt.subplots(2, 2, figsize=(7.0, 6.3), constrained_layout=True)
+ext = [-1, 1, -1, 1]                          # axes in units of pi
+Y = np.cos((BFIX[0] + BFIX[1]) / 2)
+cdb = np.cos((BFIX[0] - BFIX[1]) / 2)
 
-fig, axes = plt.subplots(2, 2, figsize=(9.2, 8.0), constrained_layout=True)
-ext = [-PI, PI, -PI, PI]
 
-# Z2 maps: two colorblind-safe fills (light neutral / medium blue)
-from matplotlib.colors import ListedColormap
-z2cmap = ListedColormap(["#e8e4da", "#3d6bb3"])
-for ax, Z, name in ((axes[0, 0], Z0, r"$\zeta_0$"),
-                    (axes[0, 1], ZP, r"$\zeta_\pi$")):
-    ax.imshow(Z.T, origin="lower", extent=ext, cmap=z2cmap, vmin=0, vmax=1,
+def lines(ax, which):
+    """Analytic gap-closing lines aA + aB = const (Proposition 2)."""
+    xs = np.array([-1.0, 1.0])
+    sets = []
+    if which in ("0", "both") and abs(Y / cdb) < 1:
+        S0 = 2 * np.arccos(Y / cdb)
+        sets += [(s + 4 * PI * m, "-") for s in (S0, -S0) for m in (-1, 0, 1)]
+        sets += [(2 * PI * m, ":") for m in (-1, 1)]       # Kramers, 0 gap
+    if which in ("pi", "both") and abs(Y / cdb) < 1:
+        Sp = 2 * np.arccos(-Y / cdb)
+        sets += [(s + 4 * PI * m, "-") for s in (Sp, -Sp) for m in (-1, 0, 1)]
+        sets += [(0.0, ":")]                               # Kramers, pi gap
+    for S, ls in sets:
+        ax.plot(xs, S / PI - xs, color=INK, lw=0.9, ls=ls)
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+
+
+for ax, Z, name, which in ((axes[0, 0], Z0, r"$\zeta_0$", "0"),
+                           (axes[0, 1], ZP, r"$\zeta_\pi$", "pi")):
+    ax.imshow(Z.T, origin="lower", extent=ext, cmap=BINARY, vmin=0, vmax=1,
               interpolation="nearest", aspect="auto")
-    ax.set_title(f"nonsymmorphic invariant {name}")
-    ax.set_xlabel(r"$\alpha_A$")
-    ax.set_ylabel(r"$\alpha_B$")
-    ax.text(0.03, 0.95, r"$\zeta=1$ (blue), $\zeta=0$ (grey)",
-            transform=ax.transAxes, fontsize=8, va="top")
-
-for ax, G, name in ((axes[1, 0], G0, r"gap at $\varepsilon=0$"),
-                    (axes[1, 1], GP, r"gap at $\varepsilon=\pi$")):
-    im = ax.imshow(G.T, origin="lower", extent=ext, cmap="viridis",
+    lines(ax, which)
+    ax.set_title(f"{name}  (blue: 1, grey: 0)")
+    ax.set_xlabel(r"$\alpha_A/\pi$")
+    ax.set_ylabel(r"$\alpha_B/\pi$")
+for ax, G, name, which in ((axes[1, 0], G0, r"gap $\Delta_0$", "0"),
+                           (axes[1, 1], GP, r"gap $\Delta_\pi$", "pi")):
+    im = ax.imshow(G.T, origin="lower", extent=ext, cmap=SEQ, vmin=0,
                    interpolation="bilinear", aspect="auto")
     fig.colorbar(im, ax=ax, shrink=0.85)
-    ax.contour(grid, grid, G.T, levels=[0.03], colors="w", linewidths=0.7)
     ax.set_title(name)
-    ax.set_xlabel(r"$\alpha_A$")
-    ax.set_ylabel(r"$\alpha_B$")
-
-fig.suptitle(
-    r"Space-glide DTQW phase diagram, $(\beta_A,\beta_B)=(-1.24,-1.39)$",
-    fontsize=11)
-fig.savefig("../figures/E3_phase_diagram.png", dpi=180)
-print("saved ../figures/E3_phase_diagram.png")
+    ax.set_xlabel(r"$\alpha_A/\pi$")
+    ax.set_ylabel(r"$\alpha_B/\pi$")
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+fig.savefig(f"../figures/E3_phase_diagram{TAG}.png")
+print(f"saved ../figures/E3_phase_diagram{TAG}.png")

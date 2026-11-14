@@ -240,5 +240,153 @@ for th1, th2 in [(0.7, 1.9), (PI / 3, PI / 4), (2.5, 0.4)]:
            nullity == 1 and err < 1e-14, f"dim={nullity}, decomp err={err:.1e}")
 
 # ----------------------------------------------------------------------------
+# Additions of the 2026-11-12 revision.
+# ----------------------------------------------------------------------------
+print("V7b -- exceptional set of the canonical-deck proposition")
+
+
+def commutant_dim(th1, th2):
+    R1, R2 = coin(th1), coin(th2)
+    cs = (Pup_ @ R2 @ Pup_ @ R1,
+          (Pup_ @ R2 @ Pdn_ + Pdn_ @ R2 @ Pup_) @ R1,
+          Pdn_ @ R2 @ Pdn_ @ R1)
+    return 4 - np.linalg.matrix_rank(np.vstack([comm(c) for c in cs]), tol=1e-10)
+
+
+# Scalars-only  <=>  theta2 not in pi + 2 pi Z  and  (theta1, theta2) not both
+# in 2 pi Z. (The first draft excluded theta_i in {0, 2 pi} instead.)
+cases = [((0.7, PI), 2), ((1.3, 3 * PI), 2), ((0.0, PI), 2), ((PI, PI), 4),
+         ((0.0, 0.0), 2), ((2 * PI, 2 * PI), 2),
+         ((0.0, 1.9), 1), ((2 * PI, 1.9), 1), ((0.7, 0.0), 1), ((PI, 0.7), 1)]
+ok = all(commutant_dim(*a) == d for a, d in cases)
+report("commutant dimension on and off the exceptional set", ok,
+       " ".join(f"({a[0]:.2f},{a[1]:.2f}):{commutant_dim(*a)}" for a, _ in cases))
+err = max(np.abs(sy @ bloch_walker(k, 0.7, PI) - bloch_walker(k, 0.7, PI) @ sy).max()
+          for k in np.linspace(0, 6, 7))
+report("theta2 = pi admits the non-scalar deck Sigma = sigma_y", err < TOL,
+       f"||[sigma_y, U(k)]|| = {err:.1e}")
+
+print("V7c -- the proposition needs L >= 2 (the cover has only 2L momenta)")
+
+
+def cover_commutant_dim(L, th1, th2):
+    """dim of {Sigma : [U_cover, T^L (x) Sigma] = 0} on the actual 2L-cycle."""
+    N = 2 * L
+    Ucov = walker(N, th1, th2, mobius=False)
+    T = np.zeros((N, N))
+    for x in range(N):
+        T[(x + 1) % N, x] = 1
+    TL = np.linalg.matrix_power(T, L)
+    cols = []
+    for a in range(2):
+        for b in range(2):
+            E = np.zeros((2, 2))
+            E[a, b] = 1
+            D = np.kron(TL, E)
+            cols.append((Ucov @ D - D @ Ucov).ravel())
+    return 4 - np.linalg.matrix_rank(np.array(cols).T, tol=1e-10)
+
+
+dims = {L: cover_commutant_dim(L, 0.7, 1.9) for L in (1, 2, 3, 5, 8)}
+report("commutant on the real 2L-cycle: non-scalar deck for L = 1 only",
+       dims[1] == 2 and all(dims[L] == 1 for L in (2, 3, 5, 8)), f"{dims}")
+
+print("V8 -- gap-closing set and explicit aliasing bound of the winding theorem")
+
+
+def gap_g(th1, th2, nk=4001):
+    """g = min_k |sin eps(k)| = min_k |(a_y', a_z')|."""
+    ks = np.linspace(0, 2 * PI, nk)
+    ce = (np.cos(th1 / 2) * np.cos(th2 / 2) * np.cos(ks)
+          - np.sin(th1 / 2) * np.sin(th2 / 2))
+    return np.sqrt(np.clip(1 - ce ** 2, 0, None)).min()
+
+
+# The gap closes exactly on theta1 +- theta2 in 2 pi Z ...
+on = [(1.0, 1.0), (1.2 * PI, 0.8 * PI), (2.5 * PI, 0.5 * PI), (0.9, -0.9)]
+off = [(PI / 3, 2 * PI / 3), (0.2, PI - 0.2), (PI + 0.3, 0.3)]   # th1 +- th2 = pi
+report("gap closes on theta1 +- theta2 in 2 pi Z",
+       all(gap_g(*p) < 1e-6 for p in on),
+       " ".join(f"{gap_g(*p):.1e}" for p in on))
+report("gap is OPEN on theta1 +- theta2 = pi (not a phase boundary)",
+       all(gap_g(*p) > 0.1 for p in off),
+       " ".join(f"{gap_g(*p):.3f}" for p in off))
+# ... and for L > 2/g both lattices give the continuum winding.
+rng = np.random.default_rng(8)
+tested = bad = 0
+while tested < 40:
+    th1, th2 = rng.uniform(-2 * PI, 2 * PI, 2)
+    g = gap_g(th1, th2)
+    if g < 0.08:
+        continue
+    L0 = int(np.floor(2 / g)) + 1
+    nu_inf = winding_on_lattice(th1, th2, np.linspace(0, 2 * PI, 801, endpoint=False))
+    for L in (L0, L0 + 1, L0 + 7):
+        if not (winding_on_lattice(th1, th2, momenta(L, False)) == nu_inf
+                == winding_on_lattice(th1, th2, momenta(L, True))):
+            bad += 1
+    tested += 1
+report("nu_L(cyl) = nu_L(Moeb) = nu_inf for all L >= floor(2/g) + 1", bad == 0,
+       f"40 random points in [-2pi, 2pi]^2, violations: {bad}")
+
+print("V8b -- the same bound in the SECOND symmetric timeframe")
+
+
+def bloch_second(k, th1, th2):
+    """U'' = R(th2/2) S_up R(th1) S_down R(th2/2): the other chiral frame."""
+    Su = np.diag([np.exp(-1j * k), 1.0])
+    Sd = np.diag([1.0, np.exp(1j * k)])
+    Rh = coin(th2 / 2)
+    return Rh @ Su @ coin(th1) @ Sd @ Rh
+
+
+def winding_second(th1, th2, ks):
+    phis = []
+    for k in ks:
+        U = bloch_second(k, th1, th2)
+        dy = 0.5 * np.real(1j * np.trace(sy @ U))
+        dz = 0.5 * np.real(1j * np.trace(sz @ U))
+        phis.append(np.arctan2(dz, dy))
+    d = np.diff(np.concatenate([phis, phis[:1]]))
+    d = (d + PI) % (2 * PI) - PI
+    return int(np.rint(d.sum() / (2 * PI)))
+
+
+rng2 = np.random.default_rng(9)
+tested = bad = 0
+chi = vel = 0.0
+while tested < 40:
+    th1, th2 = rng2.uniform(-2 * PI, 2 * PI, 2)
+    g = gap_g(th1, th2)
+    if g < 0.08:
+        continue
+    kk = np.linspace(0, 2 * PI, 2001)
+    Us = [bloch_second(k, th1, th2) for k in kk]
+    chi = max(chi, max(np.abs(sx @ U @ sx - U.conj().T).max() for U in Us))
+    v = np.array([[0.5 * np.real(1j * np.trace(sy @ U)),
+                   0.5 * np.real(1j * np.trace(sz @ U))] for U in Us])
+    speed = np.linalg.norm(np.gradient(v, kk, axis=0), axis=1).max()
+    vel = max(vel, speed)
+    L0 = int(np.floor(2 / g)) + 1
+    nu_inf = winding_second(th1, th2, np.linspace(0, 2 * PI, 801, endpoint=False))
+    for L in (L0, L0 + 1, L0 + 7):
+        if not (winding_second(th1, th2, momenta(L, False)) == nu_inf
+                == winding_second(th1, th2, momenta(L, True))):
+            bad += 1
+    tested += 1
+report("second frame: sigma_x chiral, |v'| <= 1, equality for L >= floor(2/g)+1",
+       chi < TOL and vel < 1 + 1e-6 and bad == 0,
+       f"chiral err {chi:.1e}, max |v'| {vel:.4f}, violations {bad}")
+
+print("V9 -- which invariant momenta the Moebius lattice contains")
+ok = True
+for L in range(3, 12):
+    km = np.mod(momenta(L, True), 2 * PI)
+    has0 = np.isclose(km, 0).any() or np.isclose(km, 2 * PI).any()
+    haspi = np.isclose(km, PI).any()
+    ok = ok and (not has0) and (haspi == (L % 2 == 1))
+report("k = 0 never; k = pi iff L is odd", ok, "L = 3..11")
+
+# ----------------------------------------------------------------------------
 print("\n" + ("ALL CHECKS PASS" if all(results) else ">>> SOME CHECKS FAILED <<<"))
 sys.exit(0 if all(results) else 1)

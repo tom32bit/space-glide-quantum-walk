@@ -50,7 +50,8 @@ for i in range(2 * Ns):
             dx = abs(i // 2 - j // 2)
             dx = min(dx, Ns - dx)
             maxrange = max(maxrange, dx)
-report("locality (hop range <= 4 sites)", maxrange <= 4, f"range={maxrange}")
+report("locality (hop range = 2 sites, i.e. one unit cell)", maxrange == 2,
+       f"range={maxrange}")
 
 print("E1b -- real space vs Bloch")
 worst = 0.0
@@ -126,6 +127,108 @@ d2, _ = offdiag_det(k0 + 2 * PI, params)
 rel = abs(d2 - np.conj(d1)) / max(abs(d1), 1e-15)
 report("d(k+2pi) == conj(d(k))", rel < 1e-9,
        f"d(k)={d1:.4f}, d(k+2pi)={d2:.4f}, rel={rel:.1e}")
+
+
+# ---------------------------------------------------------------------------
+# Additions of the 2026-11-12 revision.
+# ---------------------------------------------------------------------------
+from spaceglide_walker import (batched_F, U_from_F, batched_V, halfstep_blocks,
+                               su2_coin, t_site, sx, I2, Pup, Pdn, rot)
+
+print("E1f/g at 40 random real parameter points (the paper says 'generic')")
+rng_fg = np.random.default_rng(31337)
+bad_fg = 0
+for _ in range(40):
+    pr = tuple(rng_fg.uniform(-PI, PI, 4))
+    Us = [U_bloch(k, pr) for k in np.linspace(0.05, 2 * PI, 9)]
+    Mc = np.vstack([np.kron(Uk.T, np.eye(4)) - np.kron(np.eye(4), Uk.conj().T)
+                    for Uk in Us])
+    Mm = np.vstack([np.kron(Uk.T, np.eye(4)) - np.kron(np.eye(4), Uk)
+                    for Uk in Us])
+    bad_fg += int(16 - np.linalg.matrix_rank(Mc, tol=1e-8) != 0
+                  or 16 - np.linalg.matrix_rank(Mm, tol=1e-8) != 1)
+report("no constant chiral operator and scalar commutant at every point",
+       bad_fg == 0, f"violations {bad_fg}/40")
+
+print("E1i -- parity lemma: FULL spin-dependent shifts collapse the walker")
+# F_full = Rc(beta) S Rc(alpha) with S moving up one site right, down one left.
+Uks = []
+for k in np.linspace(0.05, 2 * PI, 9):
+    t = t_site(k)
+    S = np.kron(t, Pup) + np.kron(t.conj().T, Pdn)
+    Ca = np.zeros((4, 4), dtype=complex)
+    Ca[:2, :2], Ca[2:, 2:] = rot(params[0]), rot(params[1])
+    Cb = np.zeros((4, 4), dtype=complex)
+    Cb[:2, :2], Cb[2:, 2:] = rot(params[2]), rot(params[3])
+    Ffull = Cb @ S @ Ca
+    G = np.kron(t, sx)
+    Uks.append(G @ Ffull.conj().T @ G.conj().T @ Ffull)
+Zsub = np.diag([1.0, 1.0, -1.0, -1.0])           # sublattice grading
+err = max(np.abs(Zsub @ Uk - Uk @ Zsub).max() for Uk in Uks)
+report("full-shift walker conserves the sublattice grading", err < 1e-12,
+       f"||[Z, U(k)]|| = {err:.1e}")
+M = np.vstack([np.kron(Uk.T, np.eye(4)) - np.kron(np.eye(4), Uk) for Uk in Uks])
+nullity = 16 - np.linalg.matrix_rank(M, tol=1e-8)
+report("its commutant is non-trivial (collapse)", nullity > 1, f"dim={nullity}")
+
+print("E1j -- half-step block identities in the twisted frame")
+rng = np.random.default_rng(12)
+worst = dict(sv=0.0, mob=0.0, ublk=0.0, jac=0.0, detF=0.0)
+for trial in range(40):
+    coins = (params if trial == 0 else
+             tuple(su2_coin(rng.normal(size=4)) for _ in range(4)))
+    kk = rng.uniform(0, 2 * PI, 6)
+    a, b, c, d = halfstep_blocks(kk, coins)
+    a2, b2, c2, d2 = halfstep_blocks(kk + 2 * PI, coins)
+    F, G = batched_F(kk, coins)
+    U = U_from_F(F, G)
+    V = batched_V(kk)
+    Ut = np.conj(np.transpose(V, (0, 2, 1))) @ U @ V
+    eps = np.sort(np.abs(np.angle(np.linalg.eigvals(U))), axis=1)[:, ::2]
+    sb = np.sort(np.linalg.svd(b, compute_uv=False), axis=1)
+    sd = np.sort(np.linalg.svd(d, compute_uv=False), axis=1)
+    worst["sv"] = max(worst["sv"],
+                      np.abs(sb - np.sort(np.sin(eps / 2), axis=1)).max(),
+                      np.abs(sd - np.sort(np.cos(eps / 2), axis=1)).max())
+    db, dd = np.linalg.det(b), np.linalg.det(d)
+    worst["mob"] = max(worst["mob"],
+                       np.abs(np.linalg.det(b2) - np.conj(db)).max(),
+                       np.abs(np.linalg.det(d2) - np.conj(dd)).max())
+    worst["jac"] = max(worst["jac"],
+                       np.abs(np.linalg.det(a) - np.conj(dd)).max(),
+                       np.abs(np.linalg.det(c) - np.conj(db)).max())
+    aH = np.conj(np.transpose(a, (0, 2, 1)))
+    worst["ublk"] = max(worst["ublk"],
+                        np.abs(Ut[:, :2, 2:] - 2 * aH @ b).max(),
+                        np.abs(Ut[:, :2, :2] - (2 * aH @ a - np.eye(2))).max(),
+                        np.abs(np.linalg.det(Ut[:, :2, 2:]) - 4 * db * dd).max())
+    worst["detF"] = max(worst["detF"], np.abs(np.linalg.det(F) - 1).max())
+report("det F = 1", worst["detF"] < 1e-12, f"err={worst['detF']:.1e}")
+report("sigma(b) = sin(eps/2), sigma(d) = cos(eps/2)", worst["sv"] < 1e-12,
+       f"err={worst['sv']:.1e}")
+report("det a = conj det d, det c = conj det b", worst["jac"] < 1e-12,
+       f"err={worst['jac']:.1e}")
+report("Moebius constraints on det b, det d", worst["mob"] < 1e-12,
+       f"err={worst['mob']:.1e}")
+report("U_++ = 2 a^dag a - 1, U_+- = 2 a^dag b, det U_+- = 4 det b det d",
+       worst["ublk"] < 1e-12, f"err={worst['ublk']:.1e}")
+
+print("E1k -- antiunitary symmetries of the real-coin walk")
+k0 = 0.83
+Uk, Umk = U_bloch(k0, params), U_bloch(-k0, params)
+report("K: conj U(k) = U(-k)", np.abs(Uk.conj() - Umk).max() < 1e-12,
+       f"err={np.abs(Uk.conj() - Umk).max():.1e}")
+Tm = gamma_bloch(-k0)                    # T psi_k = Gamma(-k) conj(psi_k)
+lhs = Tm @ Uk.conj() @ np.linalg.inv(Tm)
+report("T = Gamma K: T U(k) T^-1 = U(-k)^dag",
+       np.abs(lhs - Umk.conj().T).max() < 1e-12,
+       f"err={np.abs(lhs - Umk.conj().T).max():.1e}")
+T2 = gamma_bloch(k0) @ gamma_bloch(-k0).conj()
+report("T^2 = e^{-ik}", np.abs(T2 - np.exp(-1j * k0) * np.eye(4)).max() < 1e-12,
+       f"err={np.abs(T2 - np.exp(-1j * k0) * np.eye(4)).max():.1e}")
+e = np.sort(-np.angle(np.linalg.eigvals(U_bloch(PI, params))))
+report("Kramers pairs at k = pi", max(abs(e[0] - e[1]), abs(e[2] - e[3])) < 1e-12,
+       f"eps(pi)/pi = {np.round(e / PI, 4)}")
 
 print("\n" + ("E1 ALL PASS" if all(results) else ">>> E1 FAILURES <<<"))
 sys.exit(0 if all(results) else 1)

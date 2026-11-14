@@ -1,52 +1,61 @@
 """
-E8 -- Revision experiments for the bulk section (review items 5, 10).
+E8 -- Bulk cross-checks.
 
-E8a  Reality-broken family scan: insert sublattice coin phases (phi_A, phi_B)
-     that break the antiunitary K symmetry, and scan random parameter points:
-     (i) does zeta stay quantized (glide-only protection -- expected yes)?
-     (ii) does the empirical identity zeta_0 = zeta_pi survive, or do the two
-     gap invariants decouple once K is broken?
+E8a  Reality-broken family (sublattice coin phases, K broken): the H_eff-based
+     half-zone parity stays quantized, and its two branch-cut versions agree
+     at every gapped point. Revision 2026-11-12: this agreement is an exact
+     identity (H' - pi = H - pi sgn H, so the two flattened Hamiltonians are
+     negatives of each other and det(-D) = det D for 2x2 blocks); the first
+     draft listed it as an open observation. The identity is checked here at
+     operator level as well.
 
-E8b  Second beta-slice audit: repeat the E3 phase-diagram boundary-alignment
-     audit on an independent slice (beta_A, beta_B) = (0.4, 1.3), 41x41 grid,
-     to address the genericity concern.
+E8b  Second beta slice (bA, bB) = (0.4, 1.3), 41x41: the gap-resolved audit of
+     E3 repeated on an independent slice (quantization, closed form,
+     gap-selective boundary alignment).
 """
 
 import numpy as np
-from spaceglide_walker import PI, point_data
+from spaceglide_walker import (PI, point_data, batched_U, gap_resolved_z2,
+                               closed_form_z2)
 
 # ------------------------------------------------------------------- E8a
 
-print("E8a -- reality-broken family: quantization and zeta_0 vs zeta_pi")
+print("E8a -- reality-broken family: H_eff parity, both branch cuts")
 rng = np.random.default_rng(2026)
 classes = {}
-qmax_gapped = 0.0
-split_found = []
+qmax = 0.0
+ident = 0.0
+gapped = 0
 NPTS = 60
 for _ in range(NPTS):
     p = tuple(rng.uniform(-PI, PI, 4))
     ph = tuple(rng.uniform(-PI, PI, 2))
-    g0, gp, (z0, n0, dmin0, q0), (zp, npi, dminp, qp) = point_data(
+    g0, gp, (z_cut_pi, _, _, q0), (z_cut_0, _, _, qp) = point_data(
         p, nk=257, phases=ph)
-    gapped = g0 > 0.05 and gp > 0.05
-    if gapped:
-        qmax_gapped = max(qmax_gapped, q0, qp)
-        classes[(z0, zp)] = classes.get((z0, zp), 0) + 1
-        if z0 != zp:
-            split_found.append((p, ph, (g0, gp)))
-print(f"  gapped points: {sum(classes.values())}/{NPTS}")
-print(f"  max quantization error on gapped points: {qmax_gapped:.2e}")
-print(f"  (zeta_0, zeta_pi) class counts: {classes}")
-if split_found:
-    print("  *** zeta_0 != zeta_pi FOUND (K-breaking decouples the gaps): ***")
-    for p, ph, g in split_found[:5]:
-        print(f"    params={np.round(p,3)}, phases={np.round(ph,3)}, gaps={np.round(g,3)}")
-else:
-    print("  zeta_0 == zeta_pi at every gapped point even with K broken.")
+    if g0 > 0.05 and gp > 0.05:
+        gapped += 1
+        qmax = max(qmax, q0, qp)
+        classes[(z_cut_pi, z_cut_0)] = classes.get((z_cut_pi, z_cut_0), 0) + 1
+        # operator-level identity at a few momenta
+        U = batched_U(np.array([0.3, 2.2, 4.4]), p, ph)
+        ev, V = np.linalg.eig(U)
+        eps = -np.angle(ev)
+        Vi = np.linalg.inv(V)
+        H = np.einsum("nij,nj,njk->nik", V, eps, Vi)
+        e2 = np.where(eps <= 0, eps + 2 * PI, eps)
+        H2 = np.einsum("nij,nj,njk->nik", V, e2 - PI, Vi)
+        sg = np.einsum("nij,nj,njk->nik", V, np.sign(eps), Vi)
+        ident = max(ident, np.abs(H2 - (H - PI * sg)).max())
+print(f"  gapped points: {gapped}/{NPTS}")
+print(f"  max quantization error on gapped points: {qmax:.2e}")
+print(f"  (parity cut pi, parity cut 0) counts: {classes}")
+print(f"  both cuts agree everywhere: "
+      f"{all(a == b for a, b in classes)}")
+print(f"  identity H' - pi = H - pi sgn(H): max deviation {ident:.1e}")
 
 # ------------------------------------------------------------------- E8b
 
-print("\nE8b -- second beta-slice audit: (bA, bB) = (0.4, 1.3), 41x41")
+print("\nE8b -- second beta slice (bA, bB) = (0.4, 1.3), 41x41, gap-resolved")
 BFIX = (0.4, 1.3)
 NG = 41
 grid = np.linspace(-PI, PI, NG)
@@ -55,35 +64,35 @@ ZP = np.zeros((NG, NG), dtype=int)
 G0 = np.zeros((NG, NG))
 GP = np.zeros((NG, NG))
 QE = np.zeros((NG, NG))
+CF = np.zeros((NG, NG), dtype=bool)
 for i, aA in enumerate(grid):
     for j, aB in enumerate(grid):
-        g0, gp, (z0, n0, _, q0), (zp, npi, _, qp) = \
-            point_data((aA, aB) + BFIX, nk=161)
-        Z0[i, j], ZP[i, j] = z0, zp
-        G0[i, j], GP[i, j] = g0, gp
-        QE[i, j] = max(q0, qp)
+        p = (aA, aB) + BFIX
+        r = gap_resolved_z2(p, nk=161)
+        Z0[i, j], ZP[i, j] = r["zeta0"], r["zetapi"]
+        G0[i, j], GP[i, j], QE[i, j] = r["gap0"], r["gappi"], r["qerr"]
+        CF[i, j] = (r["zeta0"], r["zetapi"]) == closed_form_z2(p)[:2]
 
-gap_floor = np.minimum(G0, GP)
-print(f"  quantization error on gapped points: "
-      f"{QE[gap_floor > 0.05].max():.2e}")
-print(f"  zeta_0 classes: {np.unique(Z0).tolist()}; both present? "
-      f"{set(np.unique(Z0).tolist()) == {0, 1}}")
-print(f"  zeta_0 == zeta_pi everywhere? {np.array_equal(Z0, ZP)}")
-bad = 0
-worst = 0.0
-for Z, G, other in ((Z0, G0, GP), (ZP, GP, G0)):
+gapped = np.minimum(G0, GP) > 0.05
+print(f"  gapped points: {gapped.sum()} of {NG * NG}")
+print(f"  quantization error on gapped points: {QE[gapped].max():.2e}")
+print(f"  closed form agrees on gapped points: {CF[gapped].sum()} of "
+      f"{gapped.sum()}")
+print(f"  classes present: "
+      f"{sorted(set(zip(Z0[gapped].tolist(), ZP[gapped].tolist())))}")
+for name, Z, G in (("zeta_0", Z0, G0), ("zeta_pi", ZP, GP)):
+    njump = bad = 0
+    worst = 0.0
     for ax in (0, 1):
         dz = np.diff(Z, axis=ax) != 0
-        gmin = np.minimum(np.take(G, range(0, NG - 1), axis=ax),
-                          np.take(G, range(1, NG), axis=ax))
-        omin = np.minimum(np.take(other, range(0, NG - 1), axis=ax),
-                          np.take(other, range(1, NG), axis=ax))
-        floor = np.minimum(gmin, omin)
-        bad += (dz & (floor > 0.25)).sum()
+        own = np.minimum(np.take(G, range(0, NG - 1), axis=ax),
+                         np.take(G, range(1, NG), axis=ax))
+        njump += dz.sum()
+        bad += (dz & (own > 0.25)).sum()
         if dz.any():
-            worst = max(worst, floor[dz].max())
-print(f"  zeta jumps across well-gapped steps (floor > 0.25): {bad}")
-print(f"  largest gap floor on any zeta-jump step: {worst:.3f}")
+            worst = max(worst, own[dz].max())
+    print(f"  {name}: {njump} jumps; largest OWN-gap floor on a jump step "
+          f"{worst:.3f}; jumps with own gap > 0.25: {bad}")
 np.savez("../figures/E8_second_slice.npz", grid=grid, Z0=Z0, ZP=ZP,
          G0=G0, GP=GP, QE=QE, BFIX=np.array(BFIX))
 print("  saved ../figures/E8_second_slice.npz")

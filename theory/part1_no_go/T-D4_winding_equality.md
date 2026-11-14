@@ -2,8 +2,10 @@
 
 **Project:** Möbius Quantum Walk
 **Deliverable:** T-D4 (Theory track; depends on T-D1, T-D3)
-**Status:** Draft v1.0
+**Status:** Draft v1.0, with erratum of 2026-11-12
 **Authority:** Defers to `mobius_dtqw_research_spec.md` v1.3, `T-D1_walk_operators.md` v1.0, and `T-D3_chiral_symmetry.md` v1.0 on scope, conventions, and notation.
+
+> **Erratum (2026-11-12).** §3.1 and §2.1 name the phase-boundary lines as $\theta_1 \pm \theta_2 \in \{0, \pi\}$. That is wrong for the convention $R(\theta) = e^{-i\theta\sigma_y/2}$ used here: from $\cos\varepsilon = c_1c_2\cos k - s_1s_2$ the gap closes exactly on $\theta_1 \pm \theta_2 \in 2\pi\mathbb{Z}$. Inside $(0,\pi)^2$ the only boundary is the diagonal $\theta_1 = \theta_2$; the anti-diagonal $\theta_1 + \theta_2 = \pi$ is fully gapped (the test point $(\pi/3, 2\pi/3)$ of §6.1 lies on it). The theorem as stated here (restricted to $(0,\pi)^2$) is true but excludes a harmless line; without the restriction it would fail at $\theta_1 + \theta_2 = 2\pi$. The manuscript states the corrected theorem with an explicit bound: equality holds for every $L > 2/g$, $g = \min_k|\sin\varepsilon(k)|$, because $|\phi'| \le |v'|/|v| \le 1/g$ (Appendix A; check V8). The winding signs quoted below follow the 2026-05 convention, opposite to the manuscript's.
 
 ---
 

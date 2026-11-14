@@ -1,7 +1,9 @@
 # P2 — The Space-Glide Walker: Construction, Möbius Bundle, and ℤ₂ Invariant
 
 **Project:** Non-orientable DTQW — unified paper, Part II
-**Status:** v1.0, 2026-07-19. All claims cross-validated numerically (see `code/part2_spaceglide/e1_construction_checks.py` and the experiment scripts).
+**Status:** v1.0, 2026-07-19, with a correcting addendum of 2026-11-12 (§8). All claims cross-validated numerically (see `code/part2_spaceglide/e1_construction_checks.py` and the experiment scripts).
+
+> **Read §8 first.** The 2026-11-12 audit showed that §5 and items E4/E6 of §6 overstate two things: the "two invariants (ζ₀, ζ_π) from the two branch cuts" are one and the same number, and the wall modes are protected by the particle-hole symmetry K, not by the glide. §1–§4 stand as written. The manuscript (v3) follows §8.
 
 ---
 
@@ -145,4 +147,27 @@ is well defined. Two invariants $(\zeta_0, \zeta_\pi)$ arise from the two branch
 - **Shiozaki–Sato–Gomi 2015**: static Hamiltonian MTI, $\mathbb{Z}_2$ by unitary nonsymmorphic symmetry. *Here:* Floquet-unitary/DTQW realization, invariant defined directly on the walk operator, with walk-native dynamical detection ($S_\pi$).
 - **Mochizuki et al. 2020**: DTQW with **time**-glide symmetry (2D example). *Here:* **space**-glide in 1D; different symmetry axis; explicit Möbius-bundle formulation and MTI-style half-zone invariant; general construction recipe $U = \Gamma F^\dagger \Gamma^{-1} F$ for arbitrary $F$.
 - **Zhou–Zhang–Pan 2025**: Hamiltonian-Floquet MTI via quenches. *Here:* strictly coined DTQW; single ℤ₂ with π-pinned wall doublet rather than $\mathbb{Z}\times\mathbb{Z}$ edge-band windings.
-- **Part I (this project)**: the no-go motivates the construction — the *unique* way to put the Möbius twist into a split-step DTQW with the standard coin toolbox is through the glide algebra, and then it is topological.
+- **Part I (this project)**: the no-go motivates the construction. (The word "unique" used here in v1.0 was never proven and has been dropped.)
+
+---
+
+## §8. Addendum 2026-11-12: gap-resolved invariants (supersedes §5)
+
+**What was wrong in §5.** The parity defined from $H = i\log U$ is the same for both branch cuts: moving the cut gives $H' - \pi = H - \pi\,\mathrm{sgn}(H)$, so the flattened Hamiltonians are negatives of each other and $\det(-D) = \det D$ for $2\times 2$ blocks. It is therefore one invariant, not two, and it is not gap-resolved.
+
+**The correct structure.** In the twisted frame $V^\dagger \Gamma V = e^{-ik/2}\tau_z$, so $\tilde U = \tau_z \tilde F^\dagger \tau_z \tilde F$ with $\tilde F = V^\dagger F V = \begin{pmatrix} a & b \\ c & d\end{pmatrix}$. Then:
+
+1. $\tilde U_{++} = 2a^\dagger a - 1$, $\tilde U_{--} = 2d^\dagger d - 1 = 1 - 2b^\dagger b$, $\tilde U_{+-} = 2a^\dagger b$.
+2. Singular values: $\sigma(b) = \sigma(c) = \sin(\varepsilon_j/2)$, $\sigma(a) = \sigma(d) = \cos(\varepsilon_j/2)$. So $\det b = 0 \iff$ the gap at $0$ closes, $\det d = 0 \iff$ the gap at $\pi$ closes.
+3. If $\det F = 1$: $\det a = \overline{\det d}$, $\det c = \overline{\det b}$, and with $\tilde F(k+2\pi) = X\tilde F(k)X$: $f_0 := \det b$ and $f_\pi := \det d$ both obey $f(k+2\pi) = \overline{f(k)}$.
+4. Hence two half-zone parities $\zeta_0$ (from $f_0$) and $\zeta_\pi$ (from $f_\pi$), each requiring only its own gap and only glide-chirality.
+5. $\det \tilde U_{+-} = 4 f_0 f_\pi$: the Floquet operator alone determines only $\zeta_0 + \zeta_\pi$; the $H$-based parity of §5 equals $\zeta_0 + \zeta_\pi + 1$.
+6. Conventions: $f_\pi$ is frame-independent; $f_0$ picks up $\overline{\det g_+}\det g_-$ under an admissible frame change (a walk-independent shift of $n_0$); $F \to iF$ flips both parities. Differences across a domain wall (one real-space $F$) are intrinsic.
+
+**Real coins.** $K$ (reality) is a particle-hole symmetry; $T = \Gamma K$ is a glide time reversal with $T^2 = e^{-ik}$, so bands are Kramers-paired at $k = \pi$ with $\cos\varepsilon(\pi) = -\cos\bar\alpha$. With $X = \cos\bar\alpha\cos\delta_\beta$, $Y = \cos\bar\beta$:
+$$f_0(0) = \tfrac12(Y - X), \qquad f_\pi(0) = -\tfrac12(Y + X), \qquad \zeta_0 = [X > Y], \quad \zeta_\pi = [X > -Y].$$
+The only $k$-independent symmetry is $K$: the model is in class D, not "BDI enriched by the glide".
+
+**Walls.** $N_0 \equiv \Delta\zeta_0$, $N_\pi \equiv \Delta\zeta_\pi$ (mod 2) in 27/27 configurations (E4). Protection is by $K$: a local $K$-breaking unitary removes the mode; a real non-gentle one moves it from $\pi$ to $0$ (E7d). In 1D no wall preserves the glide, so the glide invariants have no boundary signature of their own.
+
+Proofs: manuscript Appendix B. Verification: E1i–E1k, E3, E4, E7d, E8, E9.

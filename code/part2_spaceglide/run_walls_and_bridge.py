@@ -1,115 +1,97 @@
 """
-E4 -- Domain walls: bulk-defect correspondence for the glide Z2.
-E5 -- Bridge to Part I: the canonical (scalar) Moebius twist on the glide
-      walker is still just a momentum shift -- the no-go persists -- while the
-      nonsymmorphic Z2 lives entirely in the glide structure.
-E6 -- Dynamical signature: a walker launched at a topological wall stays.
+E4 -- Domain walls: gap-resolved bulk-defect correspondence (real coins).
+E5 -- Bridge to Part I: the canonical (scalar) twist on the glide walker.
+E6 -- Dynamical detection: plain and staggered return amplitudes.
 
-E4 protocol: ring of Nc cells, coin-angle profile with two domains
-  domain 1: alpha angles of the zeta = 1 representative,
-  domain 0: alpha angles of the zeta = 0 representative,
-(beta angles common), smooth walls of width w cells. Diagonalise U, find
-in-gap states, measure their localisation at the two walls. Control: both
-domains zeta = 0 (two distinct trivial parameter sets).
+E4 protocol. Ring of Nc cells with two smooth walls separating two bulk
+parameter sets (all four coin angles interpolated). For every pair of the four
+class representatives A = (0,0), B = (0,1), C = (1,1), D = (1,0) and for three
+same-class controls, count the in-gap states bound to each wall separately in
+the 0 gap and in the pi gap (projector-trace census, see wall_census).
+Prediction tested:   N_0 = d zeta_0 (mod 2),   N_pi = d zeta_pi (mod 2).
+In particular A|C has d zeta = (1, 1): one 0 mode AND one pi mode per wall,
+although the Floquet operator's own index zeta_0 + zeta_pi is the same on
+both sides.
 
-E5 protocol: even ring, canonical twist (-1 on seam-crossing hops). The
-spectrum must equal the analytic Bloch spectrum at half-odd-integer cell
-momenta k_m = (2m+1) pi / Nc -- Part I's T1 carried verbatim to the 4-band
-walker -- and the glide-chiral identity must still hold (scalar deck commutes
-with everything).
+E5 protocol. Even ring, canonical twist (-1 on seam-crossing hops): spectrum
+must equal the Bloch spectrum at half-odd-integer cell momenta, and the
+glide-chiral identity must still hold.
 
-E6 protocol: launch |cell at wall, A up> in the E4 ring; track the staying
-probability P_stay(t) = sum of |psi|^2 within +/-4 cells of the wall, for the
-topological wall vs the control wall.
+E6 protocol. Launch a single-site state at an A|C wall and at a control wall;
+    S_0(T)  = |(1/T) sum_t        <psi0|U^t|psi0>|  ->  weight on eps = 0 modes,
+    S_pi(T) = |(1/T) sum_t (-1)^t <psi0|U^t|psi0>|  ->  weight on eps = pi modes.
+
+Outputs: ../figures/E4_E6_walls.png, printed tables.
 """
 
+import itertools
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from spaceglide_walker import (PI, U_real, U_bloch, gamma_real, coin_real,
-                               shift_up_real, shift_dn_real, glide_z2)
+from figstyle import plt, C1, C2, INK, INK2, RULE, SEQ
+from spaceglide_walker import (PI, U_real, U_bloch, gamma_real, bulk_gaps,
+                               gap_resolved_z2, closed_form_z2, wall_ring,
+                               wall_census)
 
-BLUE, RUST, GREY = "#3d6bb3", "#b3573d", "#8a8578"
-
-P1 = (2.094395102393195, 2.7227136331111534, -1.24, -1.39)   # zeta = 1
-P0 = (2.094395102393195, 1.1519173063162569, -1.24, -1.39)   # zeta = 0
-P0b = (0.9, 2.1, -1.24, -1.39)                               # zeta = 0 (generic alt)
-
-for tag, p in (("P1", P1), ("P0", P0), ("P0b", P0b)):
-    z, n, dmin, q = glide_z2(p)
-    print(f"{tag}: zeta={z} (n={n}, min|d|={dmin:.2f})")
+BETA = (-1.24, -1.39)
+REPS = {
+    "A": (2.094395102393195, 2.7227136331111534) + BETA,     # (0, 0)
+    "B": (2.094395102393195, 1.1519173063162569) + BETA,     # (0, 1)
+    "C": (2.8274333882308134, -1.0995574287564276) + BETA,   # (1, 1)
+    "D": (-0.6355, -2.4256, -3.0049, -3.1354),               # (1, 0)
+    "C'": (0.6, 0.9) + BETA,                                 # (1, 1) control
+    "B'": (0.9, 2.1) + BETA,                                 # (0, 1) control
+    "A'": (-2.042, -2.5133) + BETA,                          # (0, 0) control
+}
+CLS, GAPS = {}, {}
+print("representatives: class (zeta_0, zeta_pi) [numerical | closed form], gaps")
+for k, p in REPS.items():
+    r = gap_resolved_z2(p)
+    CLS[k] = (r["zeta0"], r["zetapi"])
+    GAPS[k] = (r["gap0"], r["gappi"])
+    assert CLS[k] == closed_form_z2(p)[:2]
+    assert np.allclose(GAPS[k], bulk_gaps(p), atol=2e-3)
+    print(f"  {k:2s}: {CLS[k]} | {closed_form_z2(p)[:2]}   gaps "
+          f"({r['gap0']:.3f}, {r['gappi']:.3f})")
 
 # --------------------------------------------------------------- E4
-
-def wall_profile(Nc, pL, pR, w=3):
-    """Per-site alpha-angle profile: left half domain pL, right half pR,
-    tanh walls of width w cells centred at cell Nc/4 and 3 Nc/4."""
-    Ns = 2 * Nc
-    prof = np.zeros(Ns)
-    c1, c2 = Nc // 4, 3 * Nc // 4
-    for x in range(Ns):
-        cell = x // 2
-        # smooth interpolation parameter: 1 inside [c1, c2), 0 outside
-        s = 0.5 * (np.tanh((cell - c1) / w) - np.tanh((cell - c2) / w))
-        aL = pL[0] if x % 2 == 0 else pL[1]
-        aR = pR[0] if x % 2 == 0 else pR[1]
-        prof[x] = aR + (aL - aR) * s      # s=1 -> pL (inner), s=0 -> pR (outer)
-    return prof
-
-
-def wall_spectrum(Nc, pInner, pOuter, w=3):
-    Ns = 2 * Nc
-    prof = wall_profile(Nc, pInner, pOuter, w)
-    params = (0.0, 0.0, pInner[2], pInner[3])       # alpha via profile
-    U = U_real(Ns, params, profiles=(prof, None))
-    evals, evecs = np.linalg.eig(U)
-    eps = -np.angle(evals)
-    # localisation diagnostics
-    prob = np.abs(evecs) ** 2
-    cellprob = prob.reshape(Ns, 2, -1).sum(axis=1)      # (site, state)
-    x = np.arange(Ns)
-    ipr = (cellprob ** 2).sum(axis=0)
-    c1, c2 = 2 * (Nc // 4), 2 * (3 * Nc // 4)
-    def wallweight(centre):
-        d = np.minimum(np.abs(x - centre), Ns - np.abs(x - centre))
-        return cellprob[d <= 8].sum(axis=0)
-    return eps, ipr, wallweight(c1) + wallweight(c2), U, prof
-
-
 Nc = 60
-print("\nE4 -- domain-wall spectra")
-eps_t, ipr_t, ww_t, U_t, prof_t = wall_spectrum(Nc, P1, P0)
-eps_c, ipr_c, ww_c, U_c, prof_c = wall_spectrum(Nc, P0b, P0)
-
-# bulk gaps of the two domains (the in-gap window is their intersection)
-from spaceglide_walker import bulk_gaps
-g0_1, gp_1 = bulk_gaps(P1)
-g0_0, gp_0 = bulk_gaps(P0)
-g0_0b, gp_0b = bulk_gaps(P0b)
-g0_min_t, gp_min_t = min(g0_1, g0_0), min(gp_1, gp_0)
-g0_min_c, gp_min_c = min(g0_0b, g0_0), min(gp_0b, gp_0)
-
-def ingap_states(eps, ww, g0, gp, margin=0.55):
-    """States deep inside a bulk gap AND localised at the walls (weight > 0.5)."""
-    sel0 = (np.abs(eps) < margin * g0) & (ww > 0.5)
-    selp = (PI - np.abs(eps) < margin * gp) & (ww > 0.5)
-    return np.where(sel0)[0], np.where(selp)[0]
-
-t0, tp = ingap_states(eps_t, ww_t, g0_min_t, gp_min_t)
-c0, cp = ingap_states(eps_c, ww_c, g0_min_c, gp_min_c)
-print(f"topological walls (dzeta=1): {len(t0)} wall-localised states in gap 0 "
-      f"(eps = {np.sort(eps_t[t0]).round(3)}), {len(tp)} in gap pi "
-      f"(pi-|eps| = {np.sort(PI-np.abs(eps_t[tp])).round(3)})")
-print(f"control walls   (dzeta=0): {len(c0)} in gap 0, {len(cp)} in gap pi")
+PAIRS = (list(itertools.combinations("ABCD", 2))
+         + [("C", "C'"), ("B", "B'"), ("A", "A'")])
+print(f"\nE4 -- walls on a ring of {Nc} cells; per-wall in-gap state counts")
+print("  pair    w  predicted(d0,dpi)   N_0(wall1,wall2)  N_pi(wall1,wall2)  "
+      "pinning: max |eps| of 0 modes, max pi-|eps| of pi modes")
+all_ok = True
+rings = {}
+for a, b in PAIRS:
+    dz = ((CLS[a][0] + CLS[b][0]) % 2, (CLS[a][1] + CLS[b][1]) % 2)
+    g0 = min(GAPS[a][0], GAPS[b][0])
+    gp = min(GAPS[a][1], GAPS[b][1])
+    for w in (2, 3, 5):
+        U = wall_ring(Nc, REPS[a], REPS[b], w=w)
+        assert np.abs(U.imag).max() < 1e-13                 # K-symmetric
+        c = wall_census(U, Nc, g0, gp)
+        n0 = tuple(int(round(x)) for x in c["0"][:2])
+        npi = tuple(int(round(x)) for x in c["pi"][:2])
+        ok = (all(n % 2 == dz[0] for n in n0)
+              and all(n % 2 == dz[1] for n in npi))
+        all_ok &= ok
+        # the topological modes are the ones pinned at the gap centre
+        pin0 = c["0"][2][:2 * dz[0]]
+        pinp = c["pi"][2][:2 * dz[1]]
+        print(f"  {a:2s}|{b:2s}  {w}  {dz}            {n0}            {npi}"
+              f"            {max(pin0) if pin0 else float('nan'):.1e}  "
+              f"{max(pinp) if pinp else float('nan'):.1e}   "
+              f"[{'OK' if ok else 'MISMATCH'}]")
+        if w == 3:
+            rings[(a, b)] = (U, g0, gp, dz)
+print(f"  gap-resolved parity rule holds for all "
+      f"{3 * len(PAIRS)} wall configurations: {all_ok}")
 
 # --------------------------------------------------------------- E5
-
 print("\nE5 -- canonical cell twist on the glide walker (Part I bridge)")
 NcB = 24
 Ns = 2 * NcB
 for twist in (False, True):
-    U = U_real(Ns, P1, twist=twist)
+    U = U_real(Ns, REPS["A"], twist=twist)
     G = gamma_real(Ns, twist=twist)
     uerr = np.max(np.abs(U.conj().T @ U - np.eye(2 * Ns)))
     cerr = np.max(np.abs(G @ U @ G.conj().T - U.conj().T))
@@ -117,87 +99,122 @@ for twist in (False, True):
     ms = np.arange(NcB)
     kms = (2 * ms + 1) * PI / NcB if twist else 2 * PI * ms / NcB
     bl = np.sort(np.angle(np.concatenate(
-        [np.linalg.eigvals(U_bloch(k, P1)) for k in kms])))
+        [np.linalg.eigvals(U_bloch(k, REPS["A"])) for k in kms])))
     serr = np.max(np.abs(ev - bl))
     lat = "half-odd-integer" if twist else "integer"
     print(f"  twist={twist}: unitarity {uerr:.1e}, glide-chiral {cerr:.1e}, "
           f"spectrum == Bloch at {lat} momenta to {serr:.1e}")
 
 # --------------------------------------------------------------- E6
+print("\nE6 -- return amplitudes at an A|C wall (one 0 mode + one pi mode)")
+U_t, g0_t, gp_t, _ = rings[("A", "C")]
+U_c, g0_c, gp_c, _ = rings[("C", "C'")]
+Ns = 2 * Nc
+wall_site = 2 * (Nc // 4)
 
-print("\nE6 -- dynamics: staggered return amplitude (pi-mode detector)")
-def staggered_return(U, Nc, centre_cell, T=20000):
-    """S_pi(T) = |(1/T) sum_t (-1)^t <psi0|psi(t)>| -> total weight of psi0 on
-    quasienergy-EXACTLY-pi modes; decays ~1/(T*delta) for modes split by delta."""
-    Ns = 2 * Nc
+
+def wall_modes(U, g0, gp):
+    """The 0 mode and the pi mode bound to wall 1 (orthonormalised, picked
+    from the in-gap subspaces by maximal weight near wall 1)."""
+    ev, V = np.linalg.eig(U)
+    eps = -np.angle(ev)
+    x = np.arange(Ns)
+    d = np.minimum(np.abs(x - wall_site), Ns - np.abs(x - wall_site))
+    mask = np.repeat((d <= 24).astype(float), 2)
+    out = {}
+    for tag, dist in (("0", np.abs(eps)), ("pi", PI - np.abs(eps))):
+        idx = np.argsort(dist)[:2]                 # the two pinned modes
+        Q, _ = np.linalg.qr(V[:, idx])
+        M = Q.conj().T @ (mask[:, None] * Q)
+        wv, vv = np.linalg.eigh(M)
+        out[tag] = (Q @ vv[:, -1], dist[idx].max())
+    return out
+
+
+modes = wall_modes(U_t, g0_t, gp_t)
+# best single-site (one site, one coin) launch state for seeing BOTH modes
+w0 = np.abs(modes["0"][0]) ** 2
+wp = np.abs(modes["pi"][0]) ** 2
+best = int(np.argmax(np.minimum(w0, wp)))
+print(f"  launch state: site {best // 2} (wall centre at site {wall_site}), "
+      f"coin {'up' if best % 2 == 0 else 'down'}; overlaps with the wall "
+      f"modes: 0 mode {w0[best]:.4f}, pi mode {wp[best]:.4f}")
+print(f"  largest single-site overlaps: 0 mode {w0.max():.4f}, "
+      f"pi mode {wp.max():.4f}")
+
+
+def return_amplitudes(U, idx, T=20000):
     psi0 = np.zeros(2 * Ns, dtype=complex)
-    psi0[2 * (2 * centre_cell)] = 1.0               # |A up> at the wall cell
+    psi0[idx] = 1.0
     psi = psi0.copy()
-    acc = 0.0 + 0.0j
-    trace = []
+    acc0 = accp = 0.0 + 0.0j
     sign = 1.0
+    trace = []
     for t in range(1, T + 1):
         psi = U @ psi
         sign = -sign
-        acc += sign * np.vdot(psi0, psi)
+        amp = np.vdot(psi0, psi)
+        acc0 += amp
+        accp += sign * amp
         if t % 100 == 0:
-            trace.append((t, abs(acc) / t))
+            trace.append((t, abs(acc0) / t, abs(accp) / t))
     return np.array(trace)
 
-tr_t = staggered_return(U_t, Nc, Nc // 4)
-tr_c = staggered_return(U_c, Nc, Nc // 4)
-print(f"S_pi(T=20000): topological wall {tr_t[-1,1]:.4f}, "
-      f"control wall {tr_c[-1,1]:.4f}")
+
+tr_t = return_amplitudes(U_t, best)
+tr_c = return_amplitudes(U_c, best)
+print(f"  T = 20000: topological wall S_0 = {tr_t[-1, 1]:.4f}, "
+      f"S_pi = {tr_t[-1, 2]:.4f}; control wall S_0 = {tr_c[-1, 1]:.1e}, "
+      f"S_pi = {tr_c[-1, 2]:.1e}")
 
 # --------------------------------------------------------------- figure
-
-fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.6), constrained_layout=True)
-
-for ax, eps, ww, g0m, gpm, name in (
-        (axes[0, 0], eps_t, ww_t, g0_min_t, gp_min_t,
-         r"$\Delta\zeta = 1$ walls"),
-        (axes[0, 1], eps_c, ww_c, g0_min_c, gp_min_c,
-         r"$\Delta\zeta = 0$ walls (control)")):
+fig = plt.figure(figsize=(7.0, 5.6), constrained_layout=True)
+top, bottom = fig.subfigures(2, 1, height_ratios=[1.0, 1.0])
+panels = [(("A", "B"), r"A$|$B: $\Delta\zeta=(0,1)$"),
+          (("B", "C"), r"B$|$C: $\Delta\zeta=(1,0)$"),
+          (("A", "C"), r"A$|$C: $\Delta\zeta=(1,1)$"),
+          (("C", "C'"), r"C$|$C$'$: $\Delta\zeta=(0,0)$")]
+x = np.arange(Ns)
+dw = np.minimum.reduce([np.abs(x - 2 * (Nc // 4)), Ns - np.abs(x - 2 * (Nc // 4)),
+                        np.abs(x - 2 * (3 * Nc // 4)),
+                        Ns - np.abs(x - 2 * (3 * Nc // 4))])
+taxes = top.subplots(1, 4, sharey=True)
+for ax, (pair, title) in zip(taxes, panels):
+    U, g0, gp, dz = rings[pair]
+    ev, V = np.linalg.eig(U)
+    eps = -np.angle(ev)
+    ww = (np.abs(V) ** 2).reshape(Ns, 2, -1).sum(axis=1)[dw <= 8].sum(axis=0)
     order = np.argsort(eps)
-    sc = ax.scatter(np.arange(len(eps)), eps[order], c=ww[order], s=7,
-                    cmap="viridis", vmin=0, vmax=1)
-    for g, sgn in ((g0m, 1), (g0m, -1)):
-        ax.axhline(sgn * g, color=GREY, lw=0.6, ls=":")
-    ax.axhline(PI - gpm, color=GREY, lw=0.6, ls="--")
-    ax.axhline(-(PI - gpm), color=GREY, lw=0.6, ls="--")
-    ax.set_xlabel("state index (sorted)")
-    ax.set_ylabel(r"$\varepsilon$")
-    ax.set_title(name)
-fig.colorbar(sc, ax=axes[0, :], shrink=0.8, label="weight within 4 cells of walls")
+    sc = ax.scatter(np.arange(len(eps)), eps[order] / PI, c=ww[order], s=6,
+                    cmap=SEQ, vmin=0, vmax=1, edgecolors=INK2, linewidths=0.15)
+    for y in (g0 / PI, -g0 / PI, 1 - gp / PI, -(1 - gp / PI)):
+        ax.axhline(y, color=RULE, lw=0.7)
+    ax.set_ylim(-1.05, 1.05)
+    ax.set_title(title)
+    ax.set_xlabel("state index")
+taxes[0].set_ylabel(r"$\varepsilon/\pi$")
+cb = top.colorbar(sc, ax=list(taxes), location="right", shrink=0.85, pad=0.01)
+cb.set_label("weight near walls")
 
-ax = axes[1, 0]
-Ns = 2 * Nc
-evals_t, evecs_t = np.linalg.eig(U_t)
-eps_full = -np.angle(evals_t)
-sel = np.argsort(PI - np.abs(eps_full))[:2]        # the two pi-pinned modes
-x = np.arange(Ns) / 2.0
-for idx, s in enumerate(sel):
-    cellprob = (np.abs(evecs_t[:, s]) ** 2).reshape(Ns, 2).sum(axis=1)
-    ax.plot(x, cellprob + idx * 0.30, lw=1.4,
-            color=BLUE if idx == 0 else RUST,
-            label=rf"$\pi - |\varepsilon| = {PI - abs(eps_full[s]):.1e}$")
-ax.axvline(Nc // 4, color=GREY, lw=0.8, ls="--")
-ax.axvline(3 * Nc // 4, color=GREY, lw=0.8, ls="--")
+baxes = bottom.subplots(1, 3)
+ax = baxes[0]
+cells = np.arange(Ns) / 2.0
+for tag, colr, lab in (("0", C1, r"$\varepsilon=0$ mode"),
+                       ("pi", C2, r"$\varepsilon=\pi$ mode")):
+    dens = (np.abs(modes[tag][0]) ** 2).reshape(Ns, 2).sum(axis=1)
+    ax.plot(cells, dens, color=colr, label=lab)
+ax.axvline(Nc // 4, color=INK2, lw=0.6, ls=":")
+ax.set_xlim(Nc // 4 - 10, Nc // 4 + 10)
 ax.set_xlabel("cell")
-ax.set_ylabel(r"$|\psi|^2$ (offset)")
-ax.legend(frameon=False, fontsize=8)
-ax.set_title(r"the two $\pi$-pinned wall modes, $\Delta\zeta = 1$ ring")
+ax.set_ylabel(r"$|\psi|^2$ per site")
+ax.legend(loc="upper left", fontsize=7)
+ax.set_title(r"A$|$C wall: bound modes")
 
-ax = axes[1, 1]
-ax.loglog(tr_t[:, 0], tr_t[:, 1], lw=1.6, color=BLUE,
-          label=r"$\Delta\zeta = 1$ wall")
-ax.loglog(tr_c[:, 0], tr_c[:, 1], lw=1.6, color=RUST,
-          label=r"$\Delta\zeta = 0$ wall")
-ax.set_xlabel("step $T$")
-ax.set_ylabel(r"$S_\pi(T)$")
-ax.legend(frameon=False, fontsize=9)
-ax.set_title(r"staggered return amplitude ($\pi$-mode weight)")
-
-fig.suptitle("Domain walls of the glide Z2: spectra, states, dynamics", fontsize=12)
-fig.savefig("../figures/E4_E6_walls.png", dpi=180)
+for ax, (j, name) in zip(baxes[1:], ((1, r"$S_0(T)$"), (2, r"$S_\pi(T)$"))):
+    ax.loglog(tr_t[:, 0], tr_t[:, j], color=C1, label=r"A$|$C wall")
+    ax.loglog(tr_c[:, 0], tr_c[:, j], color=C2, label=r"control C$|$C$'$")
+    ax.set_xlabel("step $T$")
+    ax.set_title(name)
+    ax.legend(loc="lower left", fontsize=7)
+fig.savefig("../figures/E4_E6_walls.png")
 print("saved ../figures/E4_E6_walls.png")
