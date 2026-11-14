@@ -3,8 +3,8 @@
 Code and data for the paper
 
 > S. M. Yousuf Iqbal Tomal and Abdullah Al Shafin,
-> *Non-Orientable Discrete-Time Quantum Walks: A No-Go Theorem and Its
-> Nonsymmorphic Resolution* (in preparation).
+> *Möbius twists in discrete-time quantum walks: inert boundary conditions
+> and gap-resolved glide invariants* (in preparation).
 
 Every figure and every numerical statement in the paper is produced by the
 scripts in this repository. Each statement in the paper cites a labelled

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this code, please cite it as below."
-title: "Space-glide quantum walk: code for 'Non-Orientable Discrete-Time Quantum Walks'"
+title: "Space-glide quantum walk: code for 'Möbius twists in discrete-time quantum walks'"
 type: software
 authors:
   - family-names: Tomal
