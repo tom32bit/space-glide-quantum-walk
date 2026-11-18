@@ -4,6 +4,14 @@ title: "Space-glide quantum walk: code for 'Möbius twists in discrete-time quan
 type: software
 version: 1.0.0
 date-released: "2026-11-18"
+doi: 10.5281/zenodo.24336241
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.24336241
+    description: "Version 1.0.0 (the code behind the paper's results)"
+  - type: doi
+    value: 10.5281/zenodo.24336240
+    description: "All versions (resolves to the latest)"
 abstract: >-
   Scripts that reproduce every figure and numerical result of the paper
   "Möbius twists in discrete-time quantum walks: inert boundary conditions

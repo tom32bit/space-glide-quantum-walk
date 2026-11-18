@@ -1,5 +1,7 @@
 # Space-glide quantum walk
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24336241.svg)](https://doi.org/10.5281/zenodo.24336241)
+
 Code and data for the paper
 
 > S. M. Yousuf Iqbal Tomal and Abdullah Al Shafin,
@@ -73,4 +75,8 @@ CPU; the slowest (`four_layer_family.py`) takes about ten minutes.
 
 ## Licence and citation
 
-MIT licence (see `LICENSE`). Citation metadata are in `CITATION.cff`.
+MIT licence (see `LICENSE`). Version 1.0.0, the code behind the paper's
+results, is archived on Zenodo at
+[doi:10.5281/zenodo.24336241](https://doi.org/10.5281/zenodo.24336241); the
+DOI [10.5281/zenodo.24336240](https://doi.org/10.5281/zenodo.24336240) always
+resolves to the latest version. Citation metadata are in `CITATION.cff`.
