@@ -6,7 +6,8 @@ Code and data for the paper
 
 > S. M. Yousuf Iqbal Tomal and Abdullah Al Shafin,
 > *Möbius twists in discrete-time quantum walks: inert boundary conditions
-> and gap-resolved glide invariants* (in preparation).
+> and gap-resolved glide invariants*, submitted to J. Phys. A: Math. Theor.
+> (2026).
 
 Every figure and every numerical statement in the paper is produced by the
 scripts in this repository. Each statement in the paper cites a labelled
