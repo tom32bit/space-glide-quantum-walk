@@ -206,10 +206,10 @@ cb.set_label("weight near walls")
 baxes = bottom.subplots(1, 3)
 ax = baxes[0]
 cells = np.arange(Ns) / 2.0
-for tag, colr, lab in (("0", C1, r"$\varepsilon=0$ mode"),
-                       ("pi", C2, r"$\varepsilon=\pi$ mode")):
+for tag, colr, ls_, lab in (("0", C1, "-", r"$\varepsilon=0$ mode"),
+                            ("pi", C2, "--", r"$\varepsilon=\pi$ mode")):
     dens = (np.abs(modes[tag][0]) ** 2).reshape(Ns, 2).sum(axis=1)
-    ax.plot(cells, dens, color=colr, label=lab)
+    ax.plot(cells, dens, color=colr, ls=ls_, label=lab)
 ax.axvline(Nc // 4, color=INK2, lw=0.6, ls=":")
 ax.set_xlim(Nc // 4 - 10, Nc // 4 + 10)
 ax.set_xlabel("cell")
@@ -219,7 +219,8 @@ ax.set_title(r"A$|$C wall: bound modes")
 
 for ax, (j, name) in zip(baxes[1:], ((1, r"$S_0(T)$"), (2, r"$S_\pi(T)$"))):
     ax.loglog(tr_t[:, 0], tr_t[:, j], color=C1, label=r"A$|$C wall")
-    ax.loglog(tr_c[:, 0], tr_c[:, j], color=C2, label=r"control C$|$C$'$")
+    ax.loglog(tr_c[:, 0], tr_c[:, j], color=C2, ls="--",
+              label=r"control C$|$C$'$")
     ax.set_xlabel("step $T$")
     ax.set_title(name)
     ax.legend(loc="lower left", fontsize=7)

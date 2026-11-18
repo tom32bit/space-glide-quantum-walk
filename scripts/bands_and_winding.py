@@ -81,7 +81,7 @@ for col, (name, coins) in enumerate(cases):
     ax = axes[1, col]
     ax.plot(ks / PI, np.unwrap(np.angle(f0)) / PI, color=C1,
             label=r"$\theta_0=\arg\det b$")
-    ax.plot(ks / PI, np.unwrap(np.angle(fpi)) / PI, color=C2,
+    ax.plot(ks / PI, np.unwrap(np.angle(fpi)) / PI, color=C2, ls="--",
             label=r"$\theta_\pi=\arg\det d$")
     ax.axvline(2, color=INK2, lw=0.6, ls=":")
     ax.set_xlim(0, 4)
@@ -94,8 +94,9 @@ for col, (name, coins) in enumerate(cases):
     ax = axes[2, col]
     ax.axhline(0, color=RULE, lw=0.6)
     ax.axvline(0, color=RULE, lw=0.6)
-    for f, colr, lab in ((f0, C1, r"$f_0=\det b$"), (fpi, C2, r"$f_\pi=\det d$")):
-        ax.plot(f[half].real, f[half].imag, color=colr, label=lab)
+    for f, colr, ls_, lab in ((f0, C1, "-", r"$f_0=\det b$"),
+                              (fpi, C2, "--", r"$f_\pi=\det d$")):
+        ax.plot(f[half].real, f[half].imag, color=colr, ls=ls_, label=lab)
         ax.plot(f[0].real, f[0].imag, "o", ms=6, color=colr,
                 markeredgecolor="white", markeredgewidth=1.0, zorder=5)
         kmid = np.argmin(np.abs(ks - 2 * PI))

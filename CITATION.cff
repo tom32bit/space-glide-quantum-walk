@@ -2,17 +2,31 @@ cff-version: 1.2.0
 message: "If you use this code, please cite it as below."
 title: "Space-glide quantum walk: code for 'Möbius twists in discrete-time quantum walks'"
 type: software
+version: 1.0.0
+date-released: "2026-11-18"
+abstract: >-
+  Scripts that reproduce every figure and numerical result of the paper
+  "Möbius twists in discrete-time quantum walks: inert boundary conditions
+  and gap-resolved glide invariants" by S. M. Yousuf Iqbal Tomal and
+  Abdullah Al Shafin. They implement the chiral split-step walk with a
+  Möbius (anti-periodic) closure and the space-glide walk with its
+  gap-resolved Z2 invariants, and run the labelled checks listed in the
+  paper's appendix.
 authors:
   - family-names: Tomal
     given-names: S. M. Yousuf Iqbal
     affiliation: "BRAC University"
+    orcid: "https://orcid.org/0009-0000-3391-3824"
   - family-names: Shafin
     given-names: Abdullah Al
     affiliation: "BRAC University"
+    orcid: "https://orcid.org/0009-0007-6634-6900"
 license: MIT
 repository-code: "https://github.com/tom32bit/space-glide-quantum-walk"
 keywords:
-  - discrete-time quantum walk
+  - discrete-time quantum walks
   - nonsymmorphic symmetry
-  - topological phases
-  - Möbius
+  - Möbius bundle
+  - topological invariants
+  - Floquet topological phases
+  - bulk-defect correspondence
